@@ -117,7 +117,7 @@ head(home_pred1)
 home_pred1.table <- table(home_games_test$home_team_wins, home_pred1)
 sum(diag(home_pred1))/nrow(home_games_test)
 
-#predicitve accuracy of about 48%
+#predictive accuracy of about 48%
 
 
 
