@@ -4,7 +4,7 @@ head(NBA_Games)
 NBA.df <- data.frame(NBA_Games)
 
 head(NBA.df)
-
+## renaming all of the names by their code
 NBA.df[NBA.df == "1610612737"] <- "ATL"
 NBA.df[NBA.df == "1610612738"] <- "BOS"
 NBA.df[NBA.df == "1610612740"] <- "NO"
@@ -38,6 +38,7 @@ NBA.df[NBA.df == "1610612744"] <- "GSW"
 
 head(NBA.df)
 tail(NBA.df)
+library(tidyverse)
 install.packages("dplyr")
 games$SEASON
 
@@ -46,19 +47,95 @@ games$SEASON
 ########
 
 library(dplyr)
-games <- NBA.df %>%
+### I figured that this was a classification problem
+games_home <- NBA.df %>%
   group_by(SEASON, TEAM_ID_home) %>%
   summarise(avg_points = mean(PTS_home, na.rm = T),
-            win_prob = mean(HOME_TEAM_WINS),
+            home_team_wins = HOME_TEAM_WINS,
             avg_fgpct_home = mean(FG_PCT_home, na.rm = T),
             avg_ftpct_home = mean(FT_PCT_home, na.rm = T),
             avg_fg3pct_home = mean(FG3_PCT_home, na.rm = T),
             avg_ast_home = mean(AST_home, na.rm = T),
             avg_reb_home = mean(REB_home, na.rm = T),
             observations = n())
-games
-games.df <- data.frame(games)
-games.df
+games_home
+head(games_home)
+games.home.df <- data.frame(games_home)
+
+# I want to see the plots of each of the variables
+# they look like they all have pretty even distributions
+games.home.df %>% 
+  select(-home_team_wins)%>%
+  keep(is.numeric)%>%
+  gather()%>%
+  ggplot()+
+  geom_histogram(mapping = aes(x= value , fill = key), color = "black")+
+  facet_wrap(~key, scales = "free")
+## summary of all the variables 
+summary(games.home.df)
+games.home.df <- games.home.df %>% select(-observations)
+# partition the dataset 
+set.seed(1234)
+sample_set <- sample(nrow(games.home.df), .75*round(nrow(games.home.df)), replace = F)
+home_games_train<- games.home.df[sample_set,]
+home_games_test<- games.home.df[-sample_set,]
+
+# check the class distribution of the data to see that is is all the same 
+# all distributions are about the same and the majority / minority class distribution are pretty close
+# we must be wary of this bias and skewed model results
+round(prop.table(table(select(games.home.df, home_team_wins), exclude = NULL)),4) * 100
+round(prop.table(table(select(home_games_train, home_team_wins), exclude = NULL)),4) * 100
+round(prop.table(table(select(home_games_test, home_team_wins), exclude = NULL)),4) * 100
+
+
+# train the model 
+home_model <- home_games_train %>%
+  glm(formula = home_team_wins ~., family = binomial)
+# summary of model
+summary(home_model)
+
+
+# Predictions against the test data 
+home_pred1 <- predict(home_model, home_games_test, type = 'response')
+head(home_pred1)
+
+# create optimal cutoff point
+library(InformationValue)
+ideal_cutoff <- optimalCutoff(
+  actuals = home_games_test$home_team_wins,
+  predictedScores = home_pred1,
+  optimiseFor = "Both"
+)
+
+ideal_cutoff
+
+home_pred1 <- ifelse(home_pred1 >= ideal_cutoff,1 ,0)
+
+head(home_pred1)
+
+# confusion matrix
+home_pred1.table <- table(home_games_test$home_team_wins, home_pred1)
+sum(diag(home_pred1))/nrow(home_games_test)
+
+#predicitve accuracy of about 48%
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 Y_winprob <- games.df$win_prob
 X1_avgfgpct <- games.df$avg_fgpct_home
 X2_avgftpct <- games.df$avg_ftpct_home
@@ -70,7 +147,7 @@ NBA_Home.lm <- lm(Y_winprob ~ X1_avgfgpct + X2_avgftpct + X3_avgfg3pct  +X4_avgr
 NBA_Home.lm
 
 
-summary(NBA_Home.lm)
+
 
 ######using some diagnostics to make sure that this 
 ######is a good model fit for the data
